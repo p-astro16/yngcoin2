@@ -27,7 +27,7 @@ class TradingPlatform {
         this.initChart();
         this.initAITraders();
         this.startAITrading();
-        this.logTestCodes(); // Log test codes to console
+        this.logBase64Codes(); // Log base64 codes to console
         
         // Update UI every 0.3 seconds (was 1 second)
         setInterval(() => {
@@ -452,25 +452,25 @@ class TradingPlatform {
     }
 
     startAITrading() {
-        // AI traders make trades every 0.5-3 seconds (veel sneller!)
+        // AI traders make trades every 2-8 seconds (minder frequent voor stabielere prijzen)
         this.aiTradingInterval = setInterval(() => {
             this.executeAITrades();
-        }, Math.random() * 2500 + 500);
+        }, Math.random() * 6000 + 2000); // 2-8 seconden ipv 0.5-3 seconden
     }
 
     executeAITrades() {
         const currentPrice = this.getCurrentPrice();
         const priceChange = this.calculatePriceChange();
         
-        // Select random AI traders who might trade (veel meer traders actief)
+        // Select random AI traders who might trade (minder traders per keer)
         const activeTraders = this.aiTraders.filter(trader => {
             const timeSinceLastTrade = Date.now() - trader.lastTrade;
-            const shouldTrade = Math.random() < (trader.personality.aggression * 0.4); // 4x meer kans
-            return shouldTrade && timeSinceLastTrade > 2000; // Alleen 2 seconden wachten
+            const shouldTrade = Math.random() < (trader.personality.aggression * 0.15); // Verlaagd van 0.4 naar 0.15
+            return shouldTrade && timeSinceLastTrade > 5000; // 5 seconden wachten ipv 2
         });
 
-        // Execute trades for selected traders (veel meer trades per keer)
-        const numTradesToExecute = Math.min(Math.floor(Math.random() * 15) + 3, activeTraders.length); // 3-18 trades per keer
+        // Execute trades for selected traders (veel minder trades per keer)
+        const numTradesToExecute = Math.min(Math.floor(Math.random() * 3) + 1, activeTraders.length); // 1-3 trades per keer ipv 3-18
         
         for (let i = 0; i < numTradesToExecute; i++) {
             const trader = activeTraders[Math.floor(Math.random() * activeTraders.length)];
@@ -528,26 +528,79 @@ class TradingPlatform {
     makeAITradingDecision(trader, currentPrice, priceChange) {
         const personality = trader.personality;
         
-        // Calculate trading signals
+        // Calculate trading signals with price awareness
         let buySignal = 0;
         let sellSignal = 0;
         
-        // Trend following
+        // Price level awareness - prevents extreme swings
+        const isExpensive = currentPrice > 2.0; // Above €2 is expensive
+        const isCheap = currentPrice < 0.5;     // Below €0.50 is cheap
+        const isVeryExpensive = currentPrice > 5.0;
+        const isVeryCheap = currentPrice < 0.2;
+        
+        // Strong price level signals to prevent crazy swings
+        if (isVeryExpensive) {
+            sellSignal += 0.8; // Strong sell pressure when too expensive
+            buySignal *= 0.1;  // Almost no buying when very expensive
+        } else if (isExpensive) {
+            sellSignal += 0.4;
+            buySignal *= 0.6;
+        }
+        
+        if (isVeryCheap) {
+            buySignal += 0.8; // Strong buy pressure when very cheap
+            sellSignal *= 0.1; // Almost no selling when very cheap
+        } else if (isCheap) {
+            buySignal += 0.4;
+            sellSignal *= 0.6;
+        }
+        
+        // Moderate trend following (less extreme than before)
         if (priceChange > 0) {
-            buySignal += personality.trendFollowing * 0.5;
+            buySignal += personality.trendFollowing * 0.3; // Reduced from 0.5
         } else {
-            sellSignal += personality.trendFollowing * 0.5;
+            sellSignal += personality.trendFollowing * 0.3;
         }
         
-        // Contrarian behavior
-        if (priceChange > 5) { // If price pumped hard
-            sellSignal += personality.contrarian * 0.7;
-        } else if (priceChange < -5) { // If price dumped hard
-            buySignal += personality.contrarian * 0.7;
+        // Smart contrarian behavior - only on big moves
+        if (priceChange > 8) { // Only on very big pumps
+            sellSignal += personality.contrarian * 0.5;
+        } else if (priceChange < -8) { // Only on very big dumps
+            buySignal += personality.contrarian * 0.5;
         }
         
-        // Greed factor
-        if (trader.yngTokens > 1000) { // If they have gains
+        // Reduced greed factor
+        if (trader.yngTokens > 1000 && currentPrice > 1.5) { // Take profits when expensive
+            sellSignal += personality.greed * 0.3; // Reduced from 0.6
+        }
+        
+        // Risk management - don't trade too aggressively
+        const totalSignal = buySignal + sellSignal;
+        if (totalSignal > 1.2) {
+            buySignal *= 0.8;
+            sellSignal *= 0.8;
+        }
+        
+        // Determine action with more conservative thresholds
+        let action = 'hold';
+        let amount = 0;
+        
+        const tradeThreshold = 0.4; // Increased threshold for more selective trading
+        
+        if (buySignal > sellSignal && buySignal > tradeThreshold) {
+            action = 'buy';
+            // More conservative amounts
+            const maxTrade = Math.min(trader.eurBalance * 0.15, 500); // Max 15% or €500
+            amount = Math.random() * maxTrade * buySignal;
+        } else if (sellSignal > buySignal && sellSignal > tradeThreshold) {
+            action = 'sell';
+            // Sell smaller percentages
+            const maxSell = trader.yngTokens * 0.2; // Max 20% of holdings
+            amount = Math.random() * maxSell * sellSignal;
+        }
+        
+        return { action, amount: Math.max(amount, 0) };
+    }
             sellSignal += personality.greed * 0.3;
         }
         
@@ -584,43 +637,55 @@ class TradingPlatform {
         return { action: 'hold', amount: 0 };
     }
 
-    // SHA256 Code System
+    // Base64 Code System (veel simpeler dan SHA256)
     processCode() {
-        const code = document.getElementById('codeInput').value.trim();
+        const codeInput = document.getElementById('codeInput');
+        const code = codeInput.value.trim();
+        
         if (!code) {
-            this.showToast('Please enter a code!', 'error');
+            this.showToast('Voer een code in!', 'error');
             return;
         }
 
-        this.validateAndDecodeCode(code).then(result => {
-            if (result.valid) {
-                this.currentUser.eurBalance += result.amount;
-                this.saveUsers();
-                this.showToast(`Added €${result.amount} to your wallet!`, 'success');
-                document.getElementById('codeInput').value = '';
-                this.updateUI();
-            } else {
-                this.showToast('Invalid code format!', 'error');
-            }
-        }).catch(error => {
-            console.error('Code validation error:', error);
-            this.showToast('Invalid code!', 'error');
-        });
+        const result = this.validateAndDecodeBase64Code(code);
+        
+        if (result.valid) {
+            // Add funds to current user
+            this.currentUser.eurBalance += result.amount;
+            this.saveData();
+            
+            this.showToast(`Code succesvol ingewisseld! +€${result.amount} toegevoegd`, 'success');
+            this.updateUI();
+            
+            // Clear input
+            codeInput.value = '';
+        } else {
+            this.showToast('Ongeldige code!', 'error');
+        }
     }
 
-    async validateAndDecodeCode(code) {
+    validateAndDecodeBase64Code(code) {
         try {
-            // Test all possible valid codes
-            const testCodes = this.generateTestCodes();
-            
-            for (const testCode of testCodes) {
-                const hash = await this.sha256(testCode.original);
-                if (hash === code.toLowerCase()) {
-                    return {
-                        valid: true,
-                        amount: testCode.amount
-                    };
-                }
+            // List of valid base64 encoded codes
+            const validCodes = {
+                'WU5HRlVORFMyMDI0': { amount: 100, description: 'YNGFUNDS2024' },
+                'UE9NUFRPVEhFTU9PTg==': { amount: 250, description: 'PUMPTOTHEMOON' },
+                'SE9ETEZPUkVWRVI=': { amount: 500, description: 'HODLFOREVER' },
+                'WU5HVE9USEVNTzVO': { amount: 1000, description: 'YNGTOTHEMOON' },
+                'R0VURE1PTkVZ': { amount: 2000, description: 'GETMONEY' },
+                'Q1JZUFRPTE9SRQ==': { amount: 150, description: 'CRYPTOLORD' },
+                'VFJBREVSMjAyNA==': { amount: 300, description: 'TRADER2024' },
+                'TU9PTlNIT1Q=': { amount: 750, description: 'MOONSHOT' },
+                'RElBTU9OREhBTkRT': { amount: 1500, description: 'DIAMONDHANDS' },
+                'SU5GSU5JVEVHQUlOUw==': { amount: 5000, description: 'INFINITEGAINS' }
+            };
+
+            if (validCodes[code]) {
+                return { 
+                    valid: true, 
+                    amount: validCodes[code].amount,
+                    description: validCodes[code].description
+                };
             }
             
             return { valid: false };
@@ -629,66 +694,20 @@ class TradingPlatform {
         }
     }
 
-    generateTestCodes() {
-        // Generate valid codes with the exact format you specified
-        const now = new Date();
-        const dateString = now.getFullYear() + '-' + 
-                          String(now.getMonth() + 1).padStart(2, '0') + '-' + 
-                          String(now.getDate()).padStart(2, '0') + ' ' +
-                          String(now.getHours()).padStart(2, '0') + ':' +
-                          String(now.getMinutes()).padStart(2, '0') + ':' +
-                          String(now.getSeconds()).padStart(2, '0');
-        
-        return [
-            // Example from your message
-            {
-                original: `IGJgg0DM;YNG;EU;112;2025-07-20 13:05:03;r5ZYAwrN`,
-                amount: 112
-            },
-            // Additional test codes
-            {
-                original: `a1B2c3D4;YNG;EU;500;${dateString};X9y8Z7w6`,
-                amount: 500
-            },
-            {
-                original: `m5N6o7P8;YNG;EU;250;${dateString};Q2r3S4t5`,
-                amount: 250
-            },
-            {
-                original: `u9V0w1X2;YNG;EU;1000;${dateString};Y6z5A4b3`,
-                amount: 1000
-            },
-            {
-                original: `e3F4g5H6;YNG;EU;100;${dateString};C8d7E6f5`,
-                amount: 100
-            },
-            {
-                original: `i7J8k9L0;YNG;EU;750;${dateString};M2n1O0p9`,
-                amount: 750
-            }
-        ];
-    }
-
-    async sha256(message) {
-        const msgBuffer = new TextEncoder().encode(message);
-        const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
-        const hashArray = Array.from(new Uint8Array(hashBuffer));
-        return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-    }
-
-    // Log test codes for debugging
-    async logTestCodes() {
-        console.log('=== YNG TRADING PLATFORM - VALID SHA256 CODES ===');
-        const testCodes = this.generateTestCodes();
-        
-        for (const testCode of testCodes) {
-            const hash = await this.sha256(testCode.original);
-            console.log(`Original: ${testCode.original}`);
-            console.log(`SHA256:   ${hash}`);
-            console.log(`Amount:   €${testCode.amount}`);
-            console.log('---');
-        }
-        console.log('Copy any SHA256 hash above and paste it in the code input field!');
+    // Log base64 codes for testing
+    logBase64Codes() {
+        console.log('=== BASE64 CODES VOOR YNG TRADING PLATFORM ===');
+        console.log('YNGFUNDS2024 -> WU5HRlVORFMyMDI0 (€100)');
+        console.log('PUMPTOTHEMOON -> UE9NUFRPVEhFTU9PTg== (€250)');
+        console.log('HODLFOREVER -> SE9ETEZPUkVWRVI= (€500)');
+        console.log('YNGTOTHEMOON -> WU5HVE9USEVNTzVO (€1000)');
+        console.log('GETMONEY -> R0VURE1PTkVZ (€2000)');
+        console.log('CRYPTOLORD -> Q1JZUFRPTE9SRQ== (€150)');
+        console.log('TRADER2024 -> VFJBREVSMjAyNA== (€300)');
+        console.log('MOONSHOT -> TU9PTlNIT1Q= (€750)');
+        console.log('DIAMONDHANDS -> RElBTU9OREhBTkRT (€1500)');
+        console.log('INFINITEGAINS -> SU5GSU5JVEVHQUlOUw== (€5000)');
+        console.log('Kopieer een base64 code en plak in het input veld!');
     }
 
     // UI Updates
