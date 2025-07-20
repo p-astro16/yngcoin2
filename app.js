@@ -14,7 +14,8 @@ class TradingPlatform {
         this.liquidityPool = this.loadLiquidityPool() || {
             yngTokens: 10000,
             eurReserves: 1000,
-            k: 10000 * 1000 // constant product
+            k: 10000 * 1000, // constant product
+            totalSupply: 100000000000 // 100 billion YNG tokens total supply
         };
         
         this.init();
@@ -26,6 +27,7 @@ class TradingPlatform {
         this.initChart();
         this.initAITraders();
         this.startAITrading();
+        this.logTestCodes(); // Log test codes to console
         
         // Update UI every 0.3 seconds (was 1 second)
         setInterval(() => {
@@ -104,6 +106,24 @@ class TradingPlatform {
         document.getElementById('redeemBtn').addEventListener('click', () => {
             this.processCode();
         });
+
+        // Admin dashboard toggle (only for admin users)
+        document.getElementById('adminToggle').addEventListener('click', () => {
+            this.toggleAdminDashboard();
+        });
+
+        // Admin controls
+        document.getElementById('addEurBtn').addEventListener('click', () => {
+            this.adminAddEur();
+        });
+
+        document.getElementById('addYngBtn').addEventListener('click', () => {
+            this.adminAddYng();
+        });
+
+        document.getElementById('resetMarketBtn').addEventListener('click', () => {
+            this.adminResetMarket();
+        });
     }
 
     // Authentication
@@ -151,6 +171,83 @@ class TradingPlatform {
         document.getElementById('loginScreen').classList.add('hidden');
         document.getElementById('mainApp').classList.remove('hidden');
         localStorage.setItem('currentUser', this.currentUser.username);
+        
+        // Show admin controls for admin users
+        this.checkAdminStatus();
+    }
+
+    checkAdminStatus() {
+        const adminUsers = ['admin', 'Admin', 'ADMIN', 'administrator', 'owner', 'dev', 'developer'];
+        const isAdmin = adminUsers.includes(this.currentUser.username);
+        
+        const adminToggle = document.getElementById('adminToggle');
+        if (isAdmin) {
+            adminToggle.style.display = 'block';
+        } else {
+            adminToggle.style.display = 'none';
+            document.getElementById('adminDashboard').classList.add('hidden');
+        }
+    }
+
+    toggleAdminDashboard() {
+        const dashboard = document.getElementById('adminDashboard');
+        dashboard.classList.toggle('hidden');
+    }
+
+    adminAddEur() {
+        const amount = parseFloat(document.getElementById('adminEurAmount').value);
+        if (amount && amount > 0) {
+            this.currentUser.eurBalance += amount;
+            this.saveUsers();
+            this.showToast(`Added €${amount} to your balance!`, 'success');
+            document.getElementById('adminEurAmount').value = '';
+            this.updateUI();
+        }
+    }
+
+    adminAddYng() {
+        const amount = parseFloat(document.getElementById('adminYngAmount').value);
+        if (amount && amount > 0) {
+            this.currentUser.yngTokens += amount;
+            this.saveUsers();
+            this.showToast(`Added ${amount} YNG to your balance!`, 'success');
+            document.getElementById('adminYngAmount').value = '';
+            this.updateUI();
+        }
+    }
+
+    adminResetMarket() {
+        if (confirm('Are you sure you want to reset the entire market? This will clear all trades and reset prices!')) {
+            // Reset liquidity pool
+            this.liquidityPool = {
+                yngTokens: 10000,
+                eurReserves: 1000,
+                k: 10000 * 1000,
+                totalSupply: 100000000000
+            };
+            
+            // Clear trades and price history
+            this.trades = [];
+            this.priceHistory = [{
+                timestamp: Date.now(),
+                price: 0.1
+            }];
+            
+            // Reset AI traders
+            this.aiTraders = [];
+            Object.keys(this.users).forEach(username => {
+                if (this.users[username].isAI) {
+                    delete this.users[username];
+                }
+            });
+            
+            this.saveData();
+            this.initAITraders();
+            this.updateUI();
+            this.updateChart();
+            
+            this.showToast('Market has been reset!', 'success');
+        }
     }
 
     // AMM Trading Logic
@@ -290,13 +387,31 @@ class TradingPlatform {
             const traderNames = this.generateTraderNames();
             
             for (let i = 0; i < 1000; i++) {
+                // Realistic distribution of trader wealth
+                let eurBalance;
+                const rand = Math.random();
+                
+                if (rand < 0.6) {
+                    // 60% small traders: €10 - €1,000
+                    eurBalance = Math.random() * 990 + 10;
+                } else if (rand < 0.85) {
+                    // 25% medium traders: €1,000 - €10,000
+                    eurBalance = Math.random() * 9000 + 1000;
+                } else if (rand < 0.95) {
+                    // 10% large traders: €10,000 - €50,000
+                    eurBalance = Math.random() * 40000 + 10000;
+                } else {
+                    // 5% whale traders: €50,000 - €100,000
+                    eurBalance = Math.random() * 50000 + 50000;
+                }
+                
                 const trader = {
                     username: traderNames[i],
-                    eurBalance: Math.random() * 50 + 25, // Random balance between 25-75 EUR
-                    yngTokens: 1000, // Everyone starts with 1000 YNG
+                    eurBalance: Math.round(eurBalance * 100) / 100, // Round to 2 decimals
+                    yngTokens: 1000, // Everyone still starts with 1000 YNG
                     isAI: true,
                     personality: this.generateTraderPersonality(),
-                    lastTrade: Date.now() - Math.random() * 3600000, // Random last trade up to 1 hour ago
+                    lastTrade: Date.now() - Math.random() * 3600000,
                     totalTraded: 0
                 };
                 this.aiTraders.push(trader);
@@ -304,7 +419,7 @@ class TradingPlatform {
             }
             this.saveAITraders();
             this.saveUsers();
-            console.log('AI traders initialized!');
+            console.log('AI traders initialized with realistic wealth distribution!');
         }
     }
 
@@ -403,6 +518,11 @@ class TradingPlatform {
         
         this.saveData();
         this.saveAITraders();
+        
+        // Update chart real-time after each trade
+        if (this.chart) {
+            this.updateChart();
+        }
     }
 
     makeAITradingDecision(trader, currentPrice, priceChange) {
@@ -472,8 +592,7 @@ class TradingPlatform {
             return;
         }
 
-        try {
-            const result = this.validateAndDecodeCode(code);
+        this.validateAndDecodeCode(code).then(result => {
             if (result.valid) {
                 this.currentUser.eurBalance += result.amount;
                 this.saveUsers();
@@ -483,17 +602,18 @@ class TradingPlatform {
             } else {
                 this.showToast('Invalid code format!', 'error');
             }
-        } catch (error) {
+        }).catch(error => {
+            console.error('Code validation error:', error);
             this.showToast('Invalid code!', 'error');
-        }
+        });
     }
 
     async validateAndDecodeCode(code) {
         try {
-            // Decode the original data from SHA256
-            const testData = this.generateTestCodes();
+            // Test all possible valid codes
+            const testCodes = this.generateTestCodes();
             
-            for (const testCode of testData) {
+            for (const testCode of testCodes) {
                 const hash = await this.sha256(testCode.original);
                 if (hash === code.toLowerCase()) {
                     return {
@@ -510,30 +630,41 @@ class TradingPlatform {
     }
 
     generateTestCodes() {
-        // Generate some valid codes for testing
+        // Generate valid codes with the exact format you specified
         const now = new Date();
-        const dateString = now.toISOString().split('T')[0] + ' ' + now.toTimeString().split(' ')[0];
+        const dateString = now.getFullYear() + '-' + 
+                          String(now.getMonth() + 1).padStart(2, '0') + '-' + 
+                          String(now.getDate()).padStart(2, '0') + ' ' +
+                          String(now.getHours()).padStart(2, '0') + ':' +
+                          String(now.getMinutes()).padStart(2, '0') + ':' +
+                          String(now.getSeconds()).padStart(2, '0');
         
         return [
+            // Example from your message
             {
-                original: `a1b2c3d4e5f6;YNG;EU;916;${dateString};9x8y7z6w5v4u`,
-                amount: 916
+                original: `IGJgg0DM;YNG;EU;112;2025-07-20 13:05:03;r5ZYAwrN`,
+                amount: 112
             },
+            // Additional test codes
             {
-                original: `f1e2d3c4b5a6;YNG;EU;500;${dateString};u4v5w6x7y8z9`,
+                original: `a1B2c3D4;YNG;EU;500;${dateString};X9y8Z7w6`,
                 amount: 500
             },
             {
-                original: `9z8y7x6w5v4u;YNG;EU;250;${dateString};a1b2c3d4e5f6`,
+                original: `m5N6o7P8;YNG;EU;250;${dateString};Q2r3S4t5`,
                 amount: 250
             },
             {
-                original: `m1n2o3p4q5r6;YNG;EU;100;${dateString};s7t8u9v0w1x2`,
+                original: `u9V0w1X2;YNG;EU;1000;${dateString};Y6z5A4b3`,
+                amount: 1000
+            },
+            {
+                original: `e3F4g5H6;YNG;EU;100;${dateString};C8d7E6f5`,
                 amount: 100
             },
             {
-                original: `x2w1v0u9t8s7;YNG;EU;1000;${dateString};r6q5p4o3n2m1`,
-                amount: 1000
+                original: `i7J8k9L0;YNG;EU;750;${dateString};M2n1O0p9`,
+                amount: 750
             }
         ];
     }
@@ -543,6 +674,21 @@ class TradingPlatform {
         const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
         const hashArray = Array.from(new Uint8Array(hashBuffer));
         return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+    }
+
+    // Log test codes for debugging
+    async logTestCodes() {
+        console.log('=== YNG TRADING PLATFORM - VALID SHA256 CODES ===');
+        const testCodes = this.generateTestCodes();
+        
+        for (const testCode of testCodes) {
+            const hash = await this.sha256(testCode.original);
+            console.log(`Original: ${testCode.original}`);
+            console.log(`SHA256:   ${hash}`);
+            console.log(`Amount:   €${testCode.amount}`);
+            console.log('---');
+        }
+        console.log('Copy any SHA256 hash above and paste it in the code input field!');
     }
 
     // UI Updates
@@ -576,9 +722,16 @@ class TradingPlatform {
         document.getElementById('marketCap').textContent = `€${marketCap.toFixed(0)}`;
         document.getElementById('liquidityPool').textContent = `€${this.liquidityPool.eurReserves.toFixed(0)}`;
         document.getElementById('volume24h').textContent = `€${this.calculate24hVolume().toFixed(0)}`;
+        document.getElementById('totalSupply').textContent = `${this.liquidityPool.totalSupply.toLocaleString()} YNG`;
         
         // Update trading panel
         document.getElementById('sellBalance').textContent = `${this.currentUser.yngTokens.toFixed(4)} YNG`;
+        
+        // Update admin dashboard if visible
+        const adminPrice = document.getElementById('adminCurrentPrice');
+        if (adminPrice) {
+            adminPrice.textContent = `€${currentPrice.toFixed(6)}`;
+        }
         
         this.updateBuyEstimate();
         this.updateSellEstimate();
@@ -800,8 +953,8 @@ class TradingPlatform {
                     }
                 },
                 animation: {
-                    duration: 750,
-                    easing: 'easeOutQuart'
+                    duration: 0, // No animation for real-time updates
+                    easing: 'linear'
                 }
             }
         });
@@ -817,7 +970,7 @@ class TradingPlatform {
         
         this.chart.data.datasets[0].data = priceData;
         this.chart.data.datasets[1].data = volumeData;
-        this.chart.update('none');
+        this.chart.update('none'); // Use 'none' for fastest updates
     }
 
     getChartData(timeframe) {
