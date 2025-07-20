@@ -64,6 +64,7 @@
                     <span id="userTokens" class="user-tokens">0 YNG</span>
                     <span id="currentUser" class="username"></span>
                 </div>
+                <button id="adminToggle" class="btn btn-admin" style="display: none;">⚙️ Admin</button>
                 <button id="logoutBtn" class="btn btn-secondary">Logout</button>
             </div>
         </nav>
@@ -107,7 +108,7 @@
                         </div>
                         <div class="info-item">
                             <span class="info-label">Total Supply</span>
-                            <span class="info-value">10,000 YNG</span>
+                            <span id="totalSupply" class="info-value">100,000,000,000 YNG</span>
                         </div>
                     </div>
                 </div>
@@ -184,6 +185,54 @@
                 </div>
             </div>
         </main>
+
+        <!-- Admin Dashboard -->
+        <div id="adminDashboard" class="admin-dashboard hidden">
+            <div class="admin-container">
+                <h2>🔧 Admin Dashboard</h2>
+                
+                <div class="admin-section">
+                    <h3>Add Funds</h3>
+                    <div class="admin-controls">
+                        <div class="admin-input-group">
+                            <label>Add EUR to wallet:</label>
+                            <input type="number" id="adminEurAmount" placeholder="Amount in EUR" step="0.01">
+                            <button id="addEurBtn" class="btn btn-success">Add EUR</button>
+                        </div>
+                        <div class="admin-input-group">
+                            <label>Add YNG tokens:</label>
+                            <input type="number" id="adminYngAmount" placeholder="Amount in YNG" step="0.0001">
+                            <button id="addYngBtn" class="btn btn-success">Add YNG</button>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="admin-section">
+                    <h3>Market Controls</h3>
+                    <div class="admin-controls">
+                        <button id="resetMarketBtn" class="btn btn-danger">🔄 Reset Entire Market</button>
+                    </div>
+                </div>
+                
+                <div class="admin-section">
+                    <h3>Statistics</h3>
+                    <div class="admin-stats">
+                        <div class="stat-item">
+                            <span class="stat-label">Total AI Traders:</span>
+                            <span class="stat-value">1,000</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">Total Supply:</span>
+                            <span class="stat-value">100,000,000,000 YNG</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">Current Price:</span>
+                            <span id="adminCurrentPrice" class="stat-value">€0.100000</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
     </main>
 
     <!-- Toast Notifications -->
