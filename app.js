@@ -601,41 +601,6 @@ class TradingPlatform {
         
         return { action, amount: Math.max(amount, 0) };
     }
-            sellSignal += personality.greed * 0.3;
-        }
-        
-        // Fear factor
-        if (priceChange < -2) {
-            sellSignal += personality.fear * 0.6;
-        }
-        
-        // Random factor (meer volatiliteit)
-        buySignal += (Math.random() - 0.5) * 0.8; // 2x meer random
-        sellSignal += (Math.random() - 0.5) * 0.8;
-        
-        // Make decision (lagere threshold = meer trades)
-        const threshold = 0.15; // Was 0.3, nu 0.15 voor veel meer trades
-        
-        if (buySignal > threshold && buySignal > sellSignal) {
-            // Buy decision (grotere trade amounts)
-            const maxAmount = Math.min(trader.eurBalance * 0.8, trader.eurBalance); // Was 0.5, nu 0.8
-            const amount = Math.random() * maxAmount * (personality.aggression * 1.5); // 1.5x meer agressie
-            return {
-                action: 'buy',
-                amount: Math.max(1, Math.min(amount, maxAmount))
-            };
-        } else if (sellSignal > threshold && sellSignal > buySignal) {
-            // Sell decision (grotere trade amounts)
-            const maxAmount = Math.min(trader.yngTokens * 0.6, trader.yngTokens - 50); // Was 0.3 en 100, nu 0.6 en 50
-            const amount = Math.random() * maxAmount * (personality.aggression * 1.5);
-            return {
-                action: 'sell',
-                amount: Math.max(1, Math.min(amount, maxAmount))
-            };
-        }
-        
-        return { action: 'hold', amount: 0 };
-    }
 
     // Base64 Code System (veel simpeler dan SHA256)
     processCode() {
