@@ -217,7 +217,7 @@ class TradingPlatform {
     }
 
     adminResetMarket() {
-        if (confirm('Are you sure you want to reset the entire market? This will clear all trades and reset prices!')) {
+        if (confirm('Are you sure you want to reset the entire market? This will clear all trades and reset prices, and reinitialize 10,000 AI traders!')) {
             // Reset liquidity pool
             this.liquidityPool = {
                 yngTokens: 10000,
@@ -233,7 +233,7 @@ class TradingPlatform {
                 price: 0.1
             }];
             
-            // Reset AI traders
+            // Reset AI traders - remove all AI users
             this.aiTraders = [];
             Object.keys(this.users).forEach(username => {
                 if (this.users[username].isAI) {
@@ -241,12 +241,18 @@ class TradingPlatform {
                 }
             });
             
+            // Clear AI trading interval
+            if (this.aiTradingInterval) {
+                clearInterval(this.aiTradingInterval);
+            }
+            
             this.saveData();
-            this.initAITraders();
+            this.initAITraders(); // This will create 10,000 new AI traders
+            this.startAITrading(); // Restart AI trading
             this.updateUI();
             this.updateChart();
             
-            this.showToast('Market has been reset!', 'success');
+            this.showToast('Market reset complete! 10,000 new AI traders initialized.', 'success');
         }
     }
 
@@ -383,10 +389,10 @@ class TradingPlatform {
     // AI Traders System
     initAITraders() {
         if (this.aiTraders.length === 0) {
-            console.log('Initializing 1000 AI traders...');
+            console.log('Initializing 10,000 AI traders...');
             const traderNames = this.generateTraderNames();
             
-            for (let i = 0; i < 1000; i++) {
+            for (let i = 0; i < 10000; i++) {
                 // Realistic distribution of trader wealth
                 let eurBalance;
                 const rand = Math.random();
@@ -419,23 +425,36 @@ class TradingPlatform {
             }
             this.saveAITraders();
             this.saveUsers();
-            console.log('AI traders initialized with realistic wealth distribution!');
+            console.log('10,000 AI traders initialized with realistic wealth distribution!');
         }
     }
 
     generateTraderNames() {
         const prefixes = ['Crypto', 'Moon', 'Diamond', 'Rocket', 'Whale', 'Bull', 'Bear', 'Degen', 'Chad', 'Ape',
-            'Sigma', 'Alpha', 'Beta', 'Gamma', 'Laser', 'Turbo', 'Ultra', 'Mega', 'Giga', 'Meta'];
+            'Sigma', 'Alpha', 'Beta', 'Gamma', 'Laser', 'Turbo', 'Ultra', 'Mega', 'Giga', 'Meta', 'Super', 'Hyper',
+            'Neo', 'Pro', 'Max', 'Elite', 'Prime', 'Omega', 'Quantum', 'Cyber', 'Digital', 'Bit', 'Block', 'Chain',
+            'Smart', 'Fast', 'Quick', 'Lightning', 'Thunder', 'Storm', 'Fire', 'Ice', 'Shadow', 'Dark', 'Light',
+            'Golden', 'Silver', 'Platinum', 'Steel', 'Iron', 'Copper'];
         const suffixes = ['Trader', 'Hunter', 'Master', 'King', 'Lord', 'God', 'Beast', 'Machine', 'Pro', 'X',
-            '2000', '420', '69', 'AI', 'Bot', 'Dude', 'Guy', 'Bro', 'Fam', 'Ninja'];
-        const numbers = ['', '1', '2', '3', '7', '88', '100', '420', '777', '999'];
+            '2000', '420', '69', 'AI', 'Bot', 'Dude', 'Guy', 'Bro', 'Fam', 'Ninja', 'Wizard', 'Mage', 'Knight',
+            'Warrior', 'Hero', 'Legend', 'Myth', 'Star', 'Wolf', 'Lion', 'Tiger', 'Eagle', 'Shark', 'Dragon',
+            'Phoenix', 'Falcon', 'Viper', 'Cobra', 'Panther', 'Leopard', 'Cheetah', 'Rhino', 'Gorilla', 'Kong'];
+        const numbers = ['', '1', '2', '3', '7', '88', '100', '420', '777', '999', '2024', '2025', '1337', '666',
+            '123', '456', '789', '101', '202', '303', '404', '505', '606', '707', '808', '909', '111', '222', '333'];
         
         const names = [];
-        for (let i = 0; i < 1000; i++) {
+        for (let i = 0; i < 10000; i++) {
             const prefix = prefixes[Math.floor(Math.random() * prefixes.length)];
             const suffix = suffixes[Math.floor(Math.random() * suffixes.length)];
             const number = numbers[Math.floor(Math.random() * numbers.length)];
-            names.push(`${prefix}${suffix}${number}`);
+            let name = `${prefix}${suffix}${number}`;
+            
+            // Add random variation to avoid duplicates
+            if (names.includes(name)) {
+                name = `${prefix}${suffix}${Math.floor(Math.random() * 9999)}`;
+            }
+            
+            names.push(name);
         }
         return names;
     }
@@ -462,19 +481,24 @@ class TradingPlatform {
         const currentPrice = this.getCurrentPrice();
         const priceChange = this.calculatePriceChange();
         
-        // Select random AI traders who might trade (meer traders actief)
+        // Select random AI traders who might trade - meer actieve traders met 10k
         const activeTraders = this.aiTraders.filter(trader => {
             const timeSinceLastTrade = Date.now() - trader.lastTrade;
-            const shouldTrade = Math.random() < (trader.personality.aggression * 0.3); // Balanced tussen 0.15 en 0.4
-            return shouldTrade && timeSinceLastTrade > 2000; // 2 seconden wachten
+            const shouldTrade = Math.random() < (trader.personality.aggression * 0.4); // Verhoogd voor meer activiteit
+            return shouldTrade && timeSinceLastTrade > 1500; // 1.5 seconden wachten
         });
 
-        // Execute trades for selected traders (meer trades voor snelheid)
-        const numTradesToExecute = Math.min(Math.floor(Math.random() * 8) + 2, activeTraders.length); // 2-10 trades per keer
+        // Execute trades for selected traders - meer trades met 10k traders
+        const numTradesToExecute = Math.min(Math.floor(Math.random() * 25) + 5, activeTraders.length); // 5-30 trades per keer
         
         for (let i = 0; i < numTradesToExecute; i++) {
-            const trader = activeTraders[Math.floor(Math.random() * activeTraders.length)];
-            this.executeAITrade(trader, currentPrice, priceChange);
+            if (activeTraders.length > 0) {
+                const randomIndex = Math.floor(Math.random() * activeTraders.length);
+                const trader = activeTraders[randomIndex];
+                this.executeAITrade(trader, currentPrice, priceChange);
+                // Remove trader from active list to avoid duplicate trades in same cycle
+                activeTraders.splice(randomIndex, 1);
+            }
         }
     }
 
