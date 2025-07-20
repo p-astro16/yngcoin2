@@ -452,25 +452,25 @@ class TradingPlatform {
     }
 
     startAITrading() {
-        // AI traders make trades every 2-8 seconds (minder frequent voor stabielere prijzen)
+        // AI traders make trades every 0.5-3 seconds (snel behouden!)
         this.aiTradingInterval = setInterval(() => {
             this.executeAITrades();
-        }, Math.random() * 6000 + 2000); // 2-8 seconden ipv 0.5-3 seconden
+        }, Math.random() * 2500 + 500); // Terug naar originele snelheid
     }
 
     executeAITrades() {
         const currentPrice = this.getCurrentPrice();
         const priceChange = this.calculatePriceChange();
         
-        // Select random AI traders who might trade (minder traders per keer)
+        // Select random AI traders who might trade (meer traders actief)
         const activeTraders = this.aiTraders.filter(trader => {
             const timeSinceLastTrade = Date.now() - trader.lastTrade;
-            const shouldTrade = Math.random() < (trader.personality.aggression * 0.15); // Verlaagd van 0.4 naar 0.15
-            return shouldTrade && timeSinceLastTrade > 5000; // 5 seconden wachten ipv 2
+            const shouldTrade = Math.random() < (trader.personality.aggression * 0.3); // Balanced tussen 0.15 en 0.4
+            return shouldTrade && timeSinceLastTrade > 2000; // 2 seconden wachten
         });
 
-        // Execute trades for selected traders (veel minder trades per keer)
-        const numTradesToExecute = Math.min(Math.floor(Math.random() * 3) + 1, activeTraders.length); // 1-3 trades per keer ipv 3-18
+        // Execute trades for selected traders (meer trades voor snelheid)
+        const numTradesToExecute = Math.min(Math.floor(Math.random() * 8) + 2, activeTraders.length); // 2-10 trades per keer
         
         for (let i = 0; i < numTradesToExecute; i++) {
             const trader = activeTraders[Math.floor(Math.random() * activeTraders.length)];
@@ -528,74 +528,85 @@ class TradingPlatform {
     makeAITradingDecision(trader, currentPrice, priceChange) {
         const personality = trader.personality;
         
-        // Calculate trading signals with price awareness
+        // Calculate trading signals with smart price awareness
         let buySignal = 0;
         let sellSignal = 0;
         
-        // Price level awareness - prevents extreme swings
-        const isExpensive = currentPrice > 2.0; // Above €2 is expensive
-        const isCheap = currentPrice < 0.5;     // Below €0.50 is cheap
-        const isVeryExpensive = currentPrice > 5.0;
-        const isVeryCheap = currentPrice < 0.2;
+        // Smart price level awareness - prevents extreme crashes maar houdt momentum
+        const isExpensive = currentPrice > 3.0; // Above €3 is expensive
+        const isCheap = currentPrice < 0.3;     // Below €0.30 is cheap
+        const isVeryExpensive = currentPrice > 10.0;
+        const isVeryCheap = currentPrice < 0.1;
         
-        // Strong price level signals to prevent crazy swings
+        // Moderate price level signals - niet te agressief
         if (isVeryExpensive) {
-            sellSignal += 0.8; // Strong sell pressure when too expensive
-            buySignal *= 0.1;  // Almost no buying when very expensive
+            sellSignal += 0.5; // Sell pressure when very expensive
+            buySignal *= 0.3;  // Some buying still possible
         } else if (isExpensive) {
-            sellSignal += 0.4;
-            buySignal *= 0.6;
+            sellSignal += 0.2;
+            buySignal *= 0.8;
         }
         
         if (isVeryCheap) {
-            buySignal += 0.8; // Strong buy pressure when very cheap
-            sellSignal *= 0.1; // Almost no selling when very cheap
+            buySignal += 0.5; // Buy pressure when very cheap
+            sellSignal *= 0.3; // Some selling still possible
         } else if (isCheap) {
-            buySignal += 0.4;
-            sellSignal *= 0.6;
-        }
-        
-        // Moderate trend following (less extreme than before)
-        if (priceChange > 0) {
-            buySignal += personality.trendFollowing * 0.3; // Reduced from 0.5
-        } else {
-            sellSignal += personality.trendFollowing * 0.3;
-        }
-        
-        // Smart contrarian behavior - only on big moves
-        if (priceChange > 8) { // Only on very big pumps
-            sellSignal += personality.contrarian * 0.5;
-        } else if (priceChange < -8) { // Only on very big dumps
-            buySignal += personality.contrarian * 0.5;
-        }
-        
-        // Reduced greed factor
-        if (trader.yngTokens > 1000 && currentPrice > 1.5) { // Take profits when expensive
-            sellSignal += personality.greed * 0.3; // Reduced from 0.6
-        }
-        
-        // Risk management - don't trade too aggressively
-        const totalSignal = buySignal + sellSignal;
-        if (totalSignal > 1.2) {
-            buySignal *= 0.8;
+            buySignal += 0.2;
             sellSignal *= 0.8;
         }
         
-        // Determine action with more conservative thresholds
+        // Enhanced trend following - meer momentum
+        if (priceChange > 2) {
+            buySignal += personality.trendFollowing * 0.6; // Meer FOMO op pumps
+        } else if (priceChange > 0) {
+            buySignal += personality.trendFollowing * 0.3;
+        } else if (priceChange < -2) {
+            sellSignal += personality.trendFollowing * 0.4; // Panic selling
+        } else {
+            sellSignal += personality.trendFollowing * 0.2;
+        }
+        
+        // Smart contrarian behavior - koopt dips, verkoopt tops
+        if (priceChange > 15) { // Big pump
+            sellSignal += personality.contrarian * 0.6; // Take profits
+        } else if (priceChange < -15) { // Big dump
+            buySignal += personality.contrarian * 0.6; // Buy the dip
+        }
+        
+        // Greed factor - take profits when up
+        if (trader.yngTokens > 1500 && currentPrice > 1.0) {
+            sellSignal += personality.greed * 0.4;
+        }
+        
+        // Fear factor - panic on big drops
+        if (priceChange < -10) {
+            sellSignal += personality.fear * 0.5;
+        }
+        
+        // FOMO factor - buy on pumps
+        if (priceChange > 5 && currentPrice < 2.0) {
+            buySignal += (1 - personality.patience) * 0.4;
+        }
+        
+        // Determine action with balanced thresholds
         let action = 'hold';
         let amount = 0;
         
-        const tradeThreshold = 0.4; // Increased threshold for more selective trading
+        const tradeThreshold = 0.25; // Balanced threshold voor snelle maar slimme trades
         
         if (buySignal > sellSignal && buySignal > tradeThreshold) {
             action = 'buy';
-            // More conservative amounts
-            const maxTrade = Math.min(trader.eurBalance * 0.15, 500); // Max 15% or €500
+            // Dynamic amounts based on price levels
+            const maxTrade = isExpensive ? 
+                Math.min(trader.eurBalance * 0.1, 200) : // Careful when expensive
+                Math.min(trader.eurBalance * 0.25, 1000); // More aggressive when cheap
             amount = Math.random() * maxTrade * buySignal;
         } else if (sellSignal > buySignal && sellSignal > tradeThreshold) {
             action = 'sell';
-            // Sell smaller percentages
-            const maxSell = trader.yngTokens * 0.2; // Max 20% of holdings
+            // Smart selling amounts
+            const maxSell = isVeryExpensive ? 
+                trader.yngTokens * 0.4 : // Sell more when very expensive
+                trader.yngTokens * 0.15; // Conservative otherwise
             amount = Math.random() * maxSell * sellSignal;
         }
         
@@ -807,43 +818,81 @@ class TradingPlatform {
                     {
                         label: 'YNG Price',
                         data: [],
-                        borderColor: '#00ff88',
+                        borderColor: (context) => {
+                            // Dynamic color based on price change
+                            const priceChange = this.calculatePriceChange();
+                            return priceChange >= 0 ? '#00ff88' : '#ff4757'; // Green up, red down
+                        },
                         backgroundColor: (context) => {
                             const chart = context.chart;
                             const {ctx, chartArea} = chart;
                             if (!chartArea) return null;
                             
+                            const priceChange = this.calculatePriceChange();
                             const gradient = ctx.createLinearGradient(0, chartArea.top, 0, chartArea.bottom);
-                            gradient.addColorStop(0, 'rgba(0, 255, 136, 0.3)');
-                            gradient.addColorStop(0.5, 'rgba(0, 255, 136, 0.1)');
-                            gradient.addColorStop(1, 'rgba(0, 255, 136, 0.01)');
+                            
+                            if (priceChange >= 0) {
+                                // Green gradient for positive
+                                gradient.addColorStop(0, 'rgba(0, 255, 136, 0.4)');
+                                gradient.addColorStop(0.5, 'rgba(0, 255, 136, 0.15)');
+                                gradient.addColorStop(1, 'rgba(0, 255, 136, 0.02)');
+                            } else {
+                                // Red gradient for negative
+                                gradient.addColorStop(0, 'rgba(255, 71, 87, 0.4)');
+                                gradient.addColorStop(0.5, 'rgba(255, 71, 87, 0.15)');
+                                gradient.addColorStop(1, 'rgba(255, 71, 87, 0.02)');
+                            }
                             return gradient;
                         },
                         borderWidth: 3,
                         fill: true,
-                        tension: 0.1,
+                        tension: 0.2, // Smoother curves
                         pointRadius: 0,
-                        pointHoverRadius: 6,
-                        pointHoverBackgroundColor: '#00ff88',
+                        pointHoverRadius: 8,
+                        pointHoverBackgroundColor: (context) => {
+                            const priceChange = this.calculatePriceChange();
+                            return priceChange >= 0 ? '#00ff88' : '#ff4757';
+                        },
                         pointHoverBorderColor: '#ffffff',
-                        pointHoverBorderWidth: 2
+                        pointHoverBorderWidth: 3,
+                        segment: {
+                            borderColor: (ctx) => {
+                                // Color individual segments based on direction
+                                const current = ctx.p1.parsed.y;
+                                const previous = ctx.p0.parsed.y;
+                                return current >= previous ? '#00ff88' : '#ff4757';
+                            }
+                        }
                     },
                     {
                         label: 'Volume',
                         data: [],
                         type: 'bar',
-                        backgroundColor: 'rgba(0, 210, 255, 0.2)',
-                        borderColor: 'rgba(0, 210, 255, 0.4)',
+                        backgroundColor: (context) => {
+                            // Volume bars colored by price movement
+                            const priceChange = this.calculatePriceChange();
+                            return priceChange >= 0 ? 
+                                'rgba(0, 255, 136, 0.3)' : 
+                                'rgba(255, 71, 87, 0.3)';
+                        },
+                        borderColor: (context) => {
+                            const priceChange = this.calculatePriceChange();
+                            return priceChange >= 0 ? 
+                                'rgba(0, 255, 136, 0.6)' : 
+                                'rgba(255, 71, 87, 0.6)';
+                        },
                         borderWidth: 1,
                         yAxisID: 'volume',
-                        order: 1
+                        order: 1,
+                        barPercentage: 0.8,
+                        categoryPercentage: 0.9
                     }
                 ]
             },
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
-                backgroundColor: 'rgba(26, 26, 46, 0.95)',
+                backgroundColor: 'rgba(10, 10, 10, 0.98)', // Darker background like trading platforms
                 plugins: {
                     legend: {
                         display: false
@@ -851,23 +900,38 @@ class TradingPlatform {
                     tooltip: {
                         mode: 'index',
                         intersect: false,
-                        backgroundColor: 'rgba(0, 0, 0, 0.9)',
+                        backgroundColor: 'rgba(20, 20, 30, 0.95)',
                         titleColor: '#ffffff',
                         bodyColor: '#ffffff',
-                        borderColor: '#00ff88',
-                        borderWidth: 1,
-                        cornerRadius: 8,
+                        borderColor: (context) => {
+                            const priceChange = this.calculatePriceChange();
+                            return priceChange >= 0 ? '#00ff88' : '#ff4757';
+                        },
+                        borderWidth: 2,
+                        cornerRadius: 10,
                         displayColors: false,
+                        titleFont: {
+                            size: 14,
+                            weight: 'bold'
+                        },
+                        bodyFont: {
+                            size: 13
+                        },
+                        padding: 12,
                         callbacks: {
                             title: function(context) {
                                 const date = new Date(context[0].parsed.x);
-                                return date.toLocaleString();
+                                return date.toLocaleString('nl-NL');
                             },
                             label: function(context) {
                                 if (context.datasetIndex === 0) {
-                                    return `Price: €${context.parsed.y.toFixed(6)}`;
+                                    const price = context.parsed.y;
+                                    const change = this.calculatePriceChange();
+                                    const arrow = change >= 0 ? '▲' : '▼';
+                                    const color = change >= 0 ? '🟢' : '🔴';
+                                    return `${color} Prijs: €${price.toFixed(6)} ${arrow} ${change.toFixed(2)}%`;
                                 } else {
-                                    return `Volume: €${context.parsed.y.toFixed(2)}`;
+                                    return `💰 Volume: €${context.parsed.y.toFixed(2)}`;
                                 }
                             }
                         }
@@ -880,36 +944,42 @@ class TradingPlatform {
                             displayFormats: {
                                 minute: 'HH:mm',
                                 hour: 'HH:mm',
-                                day: 'MMM dd'
+                                day: 'DD MMM'
                             }
                         },
                         grid: {
-                            color: 'rgba(255, 255, 255, 0.05)',
-                            drawBorder: false
+                            color: 'rgba(255, 255, 255, 0.08)',
+                            drawBorder: false,
+                            lineWidth: 1
                         },
                         ticks: {
-                            color: 'rgba(255, 255, 255, 0.6)',
+                            color: 'rgba(255, 255, 255, 0.7)',
                             font: {
-                                size: 11
+                                size: 12,
+                                family: 'monospace'
                             },
-                            maxTicksLimit: 6
+                            maxTicksLimit: 8
                         }
                     },
                     y: {
                         position: 'right',
                         grid: {
-                            color: 'rgba(255, 255, 255, 0.05)',
-                            drawBorder: false
+                            color: 'rgba(255, 255, 255, 0.08)',
+                            drawBorder: false,
+                            lineWidth: 1
                         },
                         ticks: {
-                            color: 'rgba(255, 255, 255, 0.6)',
+                            color: 'rgba(255, 255, 255, 0.8)',
                             font: {
-                                size: 11
+                                size: 12,
+                                family: 'monospace',
+                                weight: 'bold'
                             },
                             callback: function(value) {
                                 return '€' + value.toFixed(6);
                             },
-                            maxTicksLimit: 8
+                            maxTicksLimit: 10,
+                            padding: 8
                         }
                     },
                     volume: {
@@ -917,7 +987,7 @@ class TradingPlatform {
                         position: 'left',
                         max: function(context) {
                             const maxVolume = Math.max(...context.chart.data.datasets[1].data.map(d => d.y || 0));
-                            return maxVolume * 4; // Make volume bars smaller relative to chart
+                            return maxVolume * 5;
                         },
                         grid: {
                             display: false
@@ -933,12 +1003,13 @@ class TradingPlatform {
                 },
                 elements: {
                     point: {
-                        radius: 0
+                        radius: 0,
+                        hoverRadius: 8
                     }
                 },
                 animation: {
-                    duration: 0, // No animation for real-time updates
-                    easing: 'linear'
+                    duration: 200, // Short animation for smoother updates
+                    easing: 'easeOutQuart'
                 }
             }
         });
